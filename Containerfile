@@ -5,7 +5,7 @@ COPY / /
 # Base Image
 FROM quay.io/fedora-ostree-desktops/kinoite:42
 
-# Build script runner form UBlue
+# Build script runner from UBlue
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=cache,dst=/var/cache \
     --mount=type=cache,dst=/var/log \
