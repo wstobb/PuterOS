@@ -1,5 +1,4 @@
 # Allow build scripts to be referenced without being copied into the final image
-COPY /system_files /
 FROM scratch AS ctx
 COPY /build_files /build_files
 
