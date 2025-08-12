@@ -2,8 +2,32 @@
 
 set -ouex pipefail
 
-# Uninstall
-dnf5 -y remove toolbox plasma-discover ark plasma-welcome kde-partitionmanager filelight kfind kwrite krfb
+# Removing Dnf Packages
+dnf5 -y remove \
+    ark \
+    filelight \
+    kde-partitionmanager \
+    kfind \
+    krfb \
+    kwrite \
+    plasma-discover \
+    plasma-welcome \
+    toolbox
 
-# Install
-dnf5 -y install distrobox keepassxc obs-studio fastfetch code tailscale tmux zsh vim htop vlc kvantum materia-kde-kvantum materia-kde papirus-icon-theme
+# Installing Dnf Packages
+dnf5 -y install \
+    code \
+    distrobox \
+    fastfetch \
+    htop \
+    keepassxc \
+    kvantum \
+    materia-kde \
+    materia-kde-kvantum \
+    obs-studio \
+    papirus-icon-theme \
+    tailscale \
+    tmux \
+    vim \
+    vlc \
+    zsh
