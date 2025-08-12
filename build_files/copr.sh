@@ -2,4 +2,4 @@
 
 set -ouex pipefail
 
-dnf5 -y copr enable scottames/ghostty
+# Nothing yet
