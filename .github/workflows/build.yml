@@ -3,9 +3,9 @@ name: Build and Push Container Image
 
 on:
   pull_request:
-    branches: [rewrite]
+    branches: [main]
   push:
-    branches: [rewrite]
+    branches: [main]
     paths-ignore: ['**/README.md']
   schedule:
     - cron: '05 10 * * *'
