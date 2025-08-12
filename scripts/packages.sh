@@ -6,4 +6,4 @@ set -ouex pipefail
 dnf5 -y remove toolbox plasma-discover ark plasma-welcome kde-partitionmanager filelight kfind kwrite krfb
 
 # Install
-dnf5 -y install distrobox keepassxc obs-studio fastfetch code tailscale tmux zsh vim htop vlc
+dnf5 -y install distrobox keepassxc obs-studio fastfetch code tailscale tmux zsh vim htop vlc kvantum materia-kde-kvantum materia-kde papirus-icon-theme
