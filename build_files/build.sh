@@ -12,7 +12,7 @@ set -ouex pipefail
 dnf5 -y remove toolbox gnome-terminal gnome-disk-utility gnome-tour
 
 # this installs a package from fedora repos
-dnf5 -y install distrobox flatpak keepassxc obs-studio fastfetch code tailscale tmux zsh nautilus-gsconnect gnome-tweaks gnome-shell-extensions-gsconnect gnome-shell-extensions-tailscale-gnome-qs gnome-shell-extensions-blur-my-shell gnome-shell-extensions-caffeine
+dnf5 -y install distrobox flatpak keepassxc obs-studio fastfetch code tailscale tmux zsh nautilus-gsconnect gnome-tweaks gnome-shell-extension-gsconnect gnome-shell-extension-tailscale-gnome-qs gnome-shell-extension-blur-my-shell gnome-shell-extension-caffeine
 
 # Use a COPR Example:
 #
