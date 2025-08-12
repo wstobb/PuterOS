@@ -1,6 +1,7 @@
 # Allow build scripts to be referenced without being copied into the final image
+COPY /system_files /
 FROM scratch AS ctx
-COPY / /
+COPY /build_files /build_files
 
 # Base Image
 FROM quay.io/fedora-ostree-desktops/silverblue:42
