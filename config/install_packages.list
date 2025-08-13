@@ -1,8 +1,10 @@
 distrobox
 fastfetch
 gstreamer1-plugin-openh264
+gwenview
 htop
 kate
+kdenlive
 keepassxc
 kvantum
 materia-kde
@@ -12,6 +14,7 @@ obs-studio
 papirus-icon-theme
 strawberry
 tailscale
+thunderbird
 tmux
 vim
 vlc
