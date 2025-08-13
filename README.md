@@ -5,5 +5,5 @@ The operating system of my personal computer. This is a custom [Fedora Atomic](h
 
 ## Usage
 ```bash
-sudo bootc switch ghcr.io/wstobb/puteros2:latest
+sudo bootc switch ghcr.io/wstobb/puteros:latest
 ```
