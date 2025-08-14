@@ -4,43 +4,38 @@ on:
   pull_request:
     branches:
       - main
-#  schedule:
-#    - cron: '0 12 * * *'
+  schedule:
+    - cron: '0 12 */ * *'
   push:
     branches:
       - main
     paths-ignore:
       - '**/README.md'
   workflow_dispatch:
-
 env:
   IMAGE_NAME: "${{ github.event.repository.name }}"
   IMAGE_REGISTRY: "ghcr.io/${{ github.repository_owner }}"
   TAG: "latest"
-
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
   cancel-in-progress: true
-
 jobs:
   build_push:
     name: Build image
     runs-on: ubuntu-24.04
-
     permissions:
       contents: read
       packages: write
-
+      id-token: write  # Required for keyless signing
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
+      
       - name: Prepare environment
         run: |
           echo "IMAGE_REGISTRY=${IMAGE_REGISTRY,,}" >> ${GITHUB_ENV}
           echo "IMAGE_NAME=${IMAGE_NAME,,}" >> ${GITHUB_ENV}
-
+      
       - name: Free Disk Space
         uses: jlumbroso/free-disk-space@main
         with:
@@ -50,19 +45,19 @@ jobs:
           haskell: true
           large-packages: true
           swap-storage: true
-
+      
       - name: Apply modifications
         run: |
           podman build \
             --tag ${{ env.IMAGE_NAME }}:${{ env.TAG }} \
             --file ./Containerfile \
             .
-
+      
       - name: Login to GHCR
         if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u ${{ github.actor }} --password-stdin
-
+      
       - name: Push to GHCR
         if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
         id: push
@@ -71,17 +66,29 @@ jobs:
           podman push ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.TAG }}
           DIGEST=$(podman inspect ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.TAG }} --format '{{.Digest}}')
           echo "digest=$DIGEST" >> $GITHUB_OUTPUT
-
+          echo "image-url=${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.TAG }}" >> $GITHUB_OUTPUT
+      
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3.9.2
         if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
-
-      - name: Sign image
+      
+      - name: Sign image with keyless signing
         if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
         run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | cosign login ghcr.io -u ${{ github.actor }} --password-stdin
-          cosign sign -y --key env://COSIGN_PRIVATE_KEY ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}
+          cosign sign --yes \
+            -a "repo=${{ github.repository }}" \
+            -a "workflow=${{ github.workflow }}" \
+            -a "ref=${{ github.sha }}" \
+            -a "actor=${{ github.actor }}" \
+            -a "event=${{ github.event_name }}" \
+            ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}
         env:
-          COSIGN_EXPERIMENTAL: false
-          COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
-          COSIGN_PASSWORD: ""
+          COSIGN_EXPERIMENTAL: 1
+      
+      - name: Verify signature
+        if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        run: |
+          cosign verify \
+            --certificate-identity-regexp="^https://github.com/${{ github.repository_owner }}/" \
+            --certificate-oidc-issuer=https://token.actions.githubusercontent.com \
+            ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}
