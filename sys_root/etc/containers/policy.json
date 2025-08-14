@@ -1,0 +1,22 @@
+{
+    "default": [
+        {
+            "type": "insecureAcceptAnything"
+        }
+    ],
+    "transports": {
+        "docker": {
+            "ghcr.io/wstobb/puteros": [
+                {
+                    "type": "sigstoreSigned",
+                    "fulcio": {
+                        "caPath": "/etc/ssl/certs/ca-certificates.crt",
+                        "oidcIssuer": "https://token.actions.githubusercontent.com",
+                        "subjectEmail": "wstobb@users.noreply.github.com"
+                    },
+                    "rekorPublicKeyPath": "/etc/pki/rekor/rekor.pub"
+                }
+            ]
+        }
+    }
+}
