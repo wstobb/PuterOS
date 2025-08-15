@@ -8,6 +8,6 @@ FROM quay.io/fedora/fedora-bootc:42
 RUN dnf install -y @kde-desktop
 # Run build script
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
-    /ctx/scripts/00-build.sh && \
+    /ctx/scripts/00-build.sh
 # Commit changes
 RUN ostree container commit
