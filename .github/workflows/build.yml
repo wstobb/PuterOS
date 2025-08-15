@@ -12,23 +12,19 @@ on:
     paths-ignore:
       - '**/README.md'
   workflow_dispatch:
-
 env:
   IMAGE_DESC: "The operating system of my personal computer."
   IMAGE_NAME: "${{ github.event.repository.name }}"
   IMAGE_REGISTRY: "ghcr.io/${{ github.repository_owner }}"
   DEFAULT_TAG: "latest"
-
 jobs:
   build_push:
     name: Build and push image
     runs-on: ubuntu-24.04
-
     permissions:
       contents: read
       packages: write
       id-token: write
-
     steps:
       - name: Free disk space
         uses: jlumbroso/free-disk-space@main
@@ -39,16 +35,13 @@ jobs:
           haskell: true
           large-packages: true
           swap-storage: true
-
       - name: Prepare environment
         run: |
           echo "IMAGE_REGISTRY=${IMAGE_REGISTRY,,}" >> ${GITHUB_ENV}
           echo "IMAGE_NAME=${IMAGE_NAME,,}" >> ${GITHUB_ENV}
           echo "IMAGE_TAG=$(date +%Y%m%d)" >> ${GITHUB_ENV}
-
       - name: Checkout
         uses: actions/checkout@v5
-
       - name: Build with Podman
         run: |
           podman build \
@@ -56,7 +49,6 @@ jobs:
             --tag ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} \
             --file ./Containerfile \
             .
-
       - name: Login to GHCR
         uses: docker/login-action@v3 # v3
         if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
@@ -64,8 +56,6 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-
       - name: Push to GHCR
         if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
         id: push
@@ -77,19 +67,17 @@ jobs:
           LATEST_IMAGE_REF="${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}@${LATEST_DIGEST}"
           echo "digest=$LATEST_DIGEST" >> $GITHUB_OUTPUT
           echo "image-ref=$LATEST_IMAGE_REF" >> $GITHUB_OUTPUT
-
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3.9.2
         if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
-
       - name: Sign image
         if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
         run: |
+          cosign sign -y --key env://COSIGN_PRIVATE_KEY ${{ steps.push.outputs.image-ref }}
           IMAGE_FULL="${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}"
-          for tag in ${{ env.DEFAULT_TAG }}; do
+          for tag in ${{ env.DEFAULT_TAG }} ${{ env.IMAGE_TAG }}; do
             cosign sign -y --key env://COSIGN_PRIVATE_KEY $IMAGE_FULL:$tag
           done
         env:
-          TAGS: ${{ steps.push.outputs.digest }}
           COSIGN_EXPERIMENTAL: false
           COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
