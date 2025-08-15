@@ -6,7 +6,7 @@ on:
     branches:
       - main
   schedule:
-    - cron: '0 12 * * *'  # Fixed cron syntax
+    - cron: '0 12 * * *'
   push:
     branches:
       - main
@@ -30,8 +30,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-      id-token: write  # Required for cosign keyless signing
-      attestations: write  # Was required for attestations, but keeping for future use
     
     outputs:
       image-digest: ${{ steps.push.outputs.digest }}
@@ -85,62 +83,3 @@ jobs:
           # Push date tag  
           echo "Pushing date tag..."
           podman push ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
-          
-          # Build image reference with digest
-          LATEST_IMAGE_REF="${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}@${LATEST_DIGEST}"
-          
-          echo "Latest tag digest: $LATEST_DIGEST"
-          echo "Latest image reference: $LATEST_IMAGE_REF"
-          
-          echo "digest=$LATEST_DIGEST" >> $GITHUB_OUTPUT
-          echo "image-ref=$LATEST_IMAGE_REF" >> $GITHUB_OUTPUT
-
-      - name: Install Cosign
-        if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
-        uses: sigstore/cosign-installer@v3.9.2
-
-      - name: Sign container image (with private key)
-        if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && vars.USE_PRIVATE_KEY == 'true'
-        run: |
-          echo "Signing with private key..."
-          echo "${{ secrets.GITHUB_TOKEN }}" | cosign login ghcr.io -u ${{ github.actor }} --password-stdin
-          
-          # Verify we have the signing key
-          if [ -z "${{ secrets.SIGNING_SECRET }}" ]; then
-            echo "ERROR: SIGNING_SECRET is not set"
-            exit 1
-          fi
-          
-          echo "Signing image: ${{ steps.push.outputs.image-ref }}"
-          cosign sign --yes --key env://COSIGN_PRIVATE_KEY ${{ steps.push.outputs.image-ref }}
-        env:
-          COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
-          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD || '' }}
-
-      - name: Sign container image (keyless)
-        if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && vars.USE_PRIVATE_KEY != 'true'
-        run: |
-          echo "Signing with keyless (OIDC) method..."
-          echo "${{ secrets.GITHUB_TOKEN }}" | cosign login ghcr.io -u ${{ github.actor }} --password-stdin
-          
-          echo "Signing image: ${{ steps.push.outputs.image-ref }}"
-          cosign sign --yes ${{ steps.push.outputs.image-ref }}
-
-
-
-      - name: Verify signature
-        if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
-        run: |
-          echo "Verifying signature for: ${{ steps.push.outputs.image-ref }}"
-          if [ "${{ vars.USE_PRIVATE_KEY }}" = "true" ]; then
-            # Verify with public key (you'll need to set COSIGN_PUBLIC_KEY secret)
-            cosign verify --key env://COSIGN_PUBLIC_KEY ${{ steps.push.outputs.image-ref }}
-          else
-            # Verify keyless signature
-            cosign verify \
-              --certificate-identity-regexp="https://github.com/${{ github.repository }}/.github/workflows/.*" \
-              --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
-              ${{ steps.push.outputs.image-ref }}
-          fi
-        env:
-          COSIGN_PUBLIC_KEY: ${{ secrets.COSIGN_PUBLIC_KEY }}
