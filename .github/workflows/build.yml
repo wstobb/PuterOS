@@ -30,6 +30,13 @@ jobs:
       id-token: write
 
     steps:
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 512
+          swap-size-mb: 1024
+          remove-dotnet: 'true'
+          
       - name: Prepare environment
         run: |
           echo "IMAGE_REGISTRY=${IMAGE_REGISTRY,,}" >> ${GITHUB_ENV}
@@ -38,13 +45,6 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@v5
-
-      - name: Maximize build space
-        uses: easimon/maximize-build-space@master
-        with:
-          root-reserve-mb: 512
-          swap-size-mb: 1024
-          remove-dotnet: 'true'
 
       - name: Build with Podman
         run: |
