@@ -31,6 +31,7 @@ jobs:
       contents: read
       packages: write
       id-token: write  # Required for cosign keyless signing
+      attestations: write  # Was required for attestations, but keeping for future use
     
     outputs:
       image-digest: ${{ steps.push.outputs.digest }}
@@ -77,22 +78,22 @@ jobs:
           podman tag ${{ env.IMAGE_NAME }}:${{ env.DEFAULT_TAG }} ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.DEFAULT_TAG }}
           podman tag ${{ env.IMAGE_NAME }}:${{ env.DEFAULT_TAG }} ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
           
-          # Push images and capture digest
-          echo "Pushing latest tag..."
-          podman push ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.DEFAULT_TAG }}
+          # Push latest tag and capture its digest directly
+          echo "Pushing latest tag and capturing digest..."
+          LATEST_DIGEST=$(podman push ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.DEFAULT_TAG }} --digestfile /tmp/latest-digest.txt && cat /tmp/latest-digest.txt)
           
+          # Push date tag  
           echo "Pushing date tag..."
           podman push ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
           
-          # Get the digest from the registry
-          DIGEST=$(podman inspect ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.DEFAULT_TAG }} --format '{{index .RepoDigests 0}}' | cut -d'@' -f2)
-          IMAGE_REF="${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}@${DIGEST}"
+          # Build image reference with digest
+          LATEST_IMAGE_REF="${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}@${LATEST_DIGEST}"
           
-          echo "Image digest: $DIGEST"
-          echo "Image reference: $IMAGE_REF"
+          echo "Latest tag digest: $LATEST_DIGEST"
+          echo "Latest image reference: $LATEST_IMAGE_REF"
           
-          echo "digest=$DIGEST" >> $GITHUB_OUTPUT
-          echo "image-ref=$IMAGE_REF" >> $GITHUB_OUTPUT
+          echo "digest=$LATEST_DIGEST" >> $GITHUB_OUTPUT
+          echo "image-ref=$LATEST_IMAGE_REF" >> $GITHUB_OUTPUT
 
       - name: Install Cosign
         if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
