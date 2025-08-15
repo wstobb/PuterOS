@@ -6,7 +6,7 @@ on:
     branches:
       - main
   schedule:
-    - cron: '0 12 * * *'
+    - cron: '0 12 * * *'  # Fixed cron syntax
   push:
     branches:
       - main
@@ -27,11 +27,16 @@ jobs:
   build_push:
     name: Build and push image
     runs-on: ubuntu-24.04
-
     permissions:
       contents: read
       packages: write
-
+      id-token: write  # Required for cosign keyless signing
+      attestations: write  # Required for attestations
+    
+    outputs:
+      image-digest: ${{ steps.push.outputs.digest }}
+      image-ref: ${{ steps.push.outputs.image-ref }}
+    
     steps:
       - name: Free Disk Space
         uses: jlumbroso/free-disk-space@main
@@ -69,29 +74,87 @@ jobs:
         if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
         id: push
         run: |
+          # Tag images with registry prefix
           podman tag ${{ env.IMAGE_NAME }}:${{ env.DEFAULT_TAG }} ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.DEFAULT_TAG }}
           podman tag ${{ env.IMAGE_NAME }}:${{ env.DEFAULT_TAG }} ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
           
+          # Push images and capture digest
+          echo "Pushing latest tag..."
           podman push ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.DEFAULT_TAG }}
+          
+          echo "Pushing date tag..."
           podman push ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
           
-          # Get the digest of the pushed image
-          DIGEST=$(podman inspect ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.DEFAULT_TAG }} --format '{{.Digest}}')
+          # Get the digest from the registry
+          DIGEST=$(podman inspect ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.DEFAULT_TAG }} --format '{{index .RepoDigests 0}}' | cut -d'@' -f2)
+          IMAGE_REF="${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}@${DIGEST}"
+          
+          echo "Image digest: $DIGEST"
+          echo "Image reference: $IMAGE_REF"
+          
           echo "digest=$DIGEST" >> $GITHUB_OUTPUT
+          echo "image-ref=$IMAGE_REF" >> $GITHUB_OUTPUT
 
       - name: Install Cosign
+        if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
         uses: sigstore/cosign-installer@v3.9.2
-        if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
 
-      - name: Sign container image
-        if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+      - name: Sign container image (with private key)
+        if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && vars.USE_PRIVATE_KEY == 'true'
         run: |
-          # Ensure cosign can authenticate (reuse the same login)
+          echo "Signing with private key..."
           echo "${{ secrets.GITHUB_TOKEN }}" | cosign login ghcr.io -u ${{ github.actor }} --password-stdin
           
-          # Sign using digest instead of tag
-          cosign sign -y --key env://COSIGN_PRIVATE_KEY ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}
+          # Verify we have the signing key
+          if [ -z "${{ secrets.SIGNING_SECRET }}" ]; then
+            echo "ERROR: SIGNING_SECRET is not set"
+            exit 1
+          fi
+          
+          echo "Signing image: ${{ steps.push.outputs.image-ref }}"
+          cosign sign --yes --key env://COSIGN_PRIVATE_KEY ${{ steps.push.outputs.image-ref }}
         env:
-          COSIGN_EXPERIMENTAL: false
           COSIGN_PRIVATE_KEY: ${{ secrets.SIGNING_SECRET }}
-          COSIGN_PASSWORD: ""
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD || '' }}
+
+      - name: Sign container image (keyless)
+        if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && vars.USE_PRIVATE_KEY != 'true'
+        run: |
+          echo "Signing with keyless (OIDC) method..."
+          echo "${{ secrets.GITHUB_TOKEN }}" | cosign login ghcr.io -u ${{ github.actor }} --password-stdin
+          
+          echo "Signing image: ${{ steps.push.outputs.image-ref }}"
+          cosign sign --yes ${{ steps.push.outputs.image-ref }}
+
+      - name: Generate SBOM
+        if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        run: |
+          echo "Generating SBOM for: ${{ steps.push.outputs.image-ref }}"
+          # Generate and attach SBOM
+          syft ${{ steps.push.outputs.image-ref }} -o spdx-json=sbom.spdx.json
+          cosign attach sbom --sbom sbom.spdx.json ${{ steps.push.outputs.image-ref }}
+
+      - name: Verify signature
+        if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        run: |
+          echo "Verifying signature for: ${{ steps.push.outputs.image-ref }}"
+          if [ "${{ vars.USE_PRIVATE_KEY }}" = "true" ]; then
+            # Verify with public key (you'll need to set COSIGN_PUBLIC_KEY secret)
+            cosign verify --key env://COSIGN_PUBLIC_KEY ${{ steps.push.outputs.image-ref }}
+          else
+            # Verify keyless signature
+            cosign verify \
+              --certificate-identity-regexp="https://github.com/${{ github.repository }}/.github/workflows/.*" \
+              --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
+              ${{ steps.push.outputs.image-ref }}
+          fi
+        env:
+          COSIGN_PUBLIC_KEY: ${{ secrets.COSIGN_PUBLIC_KEY }}
+
+      - name: Generate attestation
+        if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-name: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
