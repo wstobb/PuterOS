@@ -1,16 +1,10 @@
-@kde-desktop
-code
 distrobox
 fastfetch
-freecad
-gimp
 gstreamer1-plugin-openh264
 gwenview
 htop
 kcalc
-kdenlive
 keepassxc
-krita
 kvantum
 libreoffice
 materia-kde
@@ -20,7 +14,6 @@ obs-studio
 papirus-icon-theme
 strawberry
 tailscale
-thunderbird
 tmux
 vim
 vlc
