@@ -13,3 +13,10 @@ if [ ! -s "/ctx/config/remove_packages.list" ]; then
 else
 	dnf remove -y $(tr '\n' ' ' < /ctx/config/remove_packages.list)
 fi
+
+# RPMs
+#
+# ProtonMail Bridge
+wget https://proton.me/download/bridge/protonmail-bridge-3.21.2-1.x86_64.rpm
+dnf install -y ./protonmail-bridge-3.21.2-1.x86_64.rpm
+rm protonmail-bridge-3.21.2-1.x86_64.rpm
