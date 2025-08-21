@@ -17,6 +17,4 @@ fi
 # RPMs
 #
 # ProtonMail Bridge
-wget https://proton.me/download/bridge/protonmail-bridge-3.21.2-1.x86_64.rpm
-dnf install -y ./protonmail-bridge-3.21.2-1.x86_64.rpm
-rm protonmail-bridge-3.21.2-1.x86_64.rpm
+dnf install -y "$(curl -s https://protonmail.com/download/current_version_linux.json | jq -r '.RpmFile')"
