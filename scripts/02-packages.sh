@@ -13,8 +13,3 @@ if [ ! -s "/ctx/config/remove_packages.list" ]; then
 else
 	dnf remove -y $(tr '\n' ' ' < /ctx/config/remove_packages.list)
 fi
-
-# RPMs
-#
-# ProtonMail Bridge
-dnf install -y "$(curl -s https://protonmail.com/download/current_version_linux.json | jq -r '.RpmFile')"
